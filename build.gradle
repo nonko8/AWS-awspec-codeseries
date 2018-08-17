@@ -1,0 +1,62 @@
+buildscript {
+	repositories {
+		mavenCentral()
+		maven { url "https://plugins.gradle.org/m2/" }
+	}
+	dependencies {
+		classpath "jp.classmethod.aws:gradle-aws-plugin:0.30"
+	}
+}
+
+ext {
+	artifactId = 'awspec'
+	templateBucket = 'cm-public-cfn-templates'
+}
+
+version = '1.0'
+
+apply plugin: 'jp.classmethod.aws'
+
+aws {
+	profileName = 'cm-cloud-prd'
+	region = 'ap-northeast-1'
+}
+
+// ======== release tasks ========
+
+task uploadTemplate(type: jp.classmethod.aws.gradle.s3.AmazonS3FileUploadTask) {
+	bucketName project.templateBucket
+	key "${project.artifactId}/${project.artifactId}-${version}.template"
+	file file("${project.artifactId}.template")
+	overwrite project.version.endsWith('-SNAPSHOT')
+}
+
+task uploadDemoTemplate(type: jp.classmethod.aws.gradle.s3.AmazonS3FileUploadTask) {
+	bucketName project.templateBucket
+	key "${project.artifactId}/${project.artifactId}-demo-${version}.template"
+	file file("${project.artifactId}-demo.template")
+	overwrite project.version.endsWith('-SNAPSHOT')
+}
+
+task uploadArchives(dependsOn: [uploadTemplate, uploadDemoTemplate])
+
+// ======== demo tasks ========
+
+apply plugin: 'jp.classmethod.aws.cloudformation'
+cloudFormation {
+	stackName "${project.artifactId}-demo"
+	templateURL "https://${project.templateBucket}.s3.amazonaws.com/${project.artifactId}/${project.artifactId}-demo-${project.version}.template"
+}
+
+task cfnInit << {
+	assert project.hasProperty('keyName'): "keyName parameter is required"
+	cloudFormation.stackParams([KeyName: project.keyName])
+}
+
+awsCfnMigrateStackAndWaitCompleted.mustRunAfter cfnInit
+task deployDemo(dependsOn: [cfnInit, awsCfnMigrateStackAndWaitCompleted]) << {
+	def stack = cloudFormation.getStack("${project.cloudFormation.stackName}-demo")
+	stack.outputs.each { println "${it.outputKey} = ${it.outputValue}" }
+}
+
+task undeployDemo(dependsOn: [cfnInit, awsCfnDeleteStackAndWaitCompleted])

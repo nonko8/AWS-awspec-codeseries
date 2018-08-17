@@ -1,0 +1,2 @@
+require 'awspec'
+require 'definitions'

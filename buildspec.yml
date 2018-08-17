@@ -1,0 +1,18 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - echo Install started on `date`
+      - cd awspec
+      - bundle install
+  pre_build:
+    commands:
+      - echo Install completed on `date`
+  build:
+    commands:
+      - echo Build started on `date`
+      - ./00run.sh
+  post_build:
+    commands:
+      - echo Build completed on `date`
